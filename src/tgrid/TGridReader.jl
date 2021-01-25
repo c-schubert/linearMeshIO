@@ -2,8 +2,9 @@ module TGridReader
 #=
 This module can read fluent .msh files in ascii formating
 =#
-export TgridMeshImport
+include("TGridTypes.jl")
 
+export TgridMeshImport
 
 function TgridMeshImport(filename::String)
     io = Base.open(filename, "r")
