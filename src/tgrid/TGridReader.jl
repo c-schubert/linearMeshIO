@@ -105,7 +105,7 @@ function evalSections(sections::Array{gridSectionStruct, 1})
                 if i == 1
                     s = split(sec.content, " ")
                     contentArr = s[s .!= ""]
-                    zoneID = parse(Int64, contentArr[1])
+                    zoneID = parse(Int64, contentArr[1], base=16)
 
                     if zoneID == 0
                         firstIdx = 1
@@ -150,7 +150,7 @@ function evalSections(sections::Array{gridSectionStruct, 1})
                 if i == 1
                     s = split(sec.content, " ")
                     contentArr = s[s .!= ""]
-                    zoneID = parse(Int64, contentArr[1])
+                    zoneID = parse(Int64, contentArr[1], base=16)
 
                     if zoneID == 0
                         firstIdx = 1
@@ -271,7 +271,7 @@ function evalSections(sections::Array{gridSectionStruct, 1})
                 if i == 1
                     s = split(sec.content, " ")
                     contentArr = s[s .!= ""]
-                    zoneID = parse(Int64, contentArr[1])
+                    zoneID = parse(Int64, contentArr[1], base=16)
                     zoneType = contentArr[2]
                     zoneName = contentArr[3]
 
