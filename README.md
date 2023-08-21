@@ -45,6 +45,13 @@ of_casefolder = "/path/to/case/folder"
 of_mesh = linearMeshIO.ofMeshReader.read_openfoam_mesh(of_casefolder)
 ```
 
+
+### COMSOL
+
+MULTIPHYSICS textfile (*.mphtxt)
+
+
+
 ## TODOs
   - build a real module structure ...
   - build some examples

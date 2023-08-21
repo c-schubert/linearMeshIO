@@ -5,7 +5,7 @@ Tokenize openfoam polymesh dictionary
 TODO: Implement function converting binary and gz files to Vector{Token}
 =#
 
-const TokenTypeID_Dict = Dict(
+const TokenTypeID_OF_ASCII = Dict(
     :eof => 0,
     :emptyspace => 1,
     :newline => 2,
@@ -34,35 +34,7 @@ const TokenTypeID_Dict = Dict(
     :star => Int64('*'),
    )
         
-const TokenSymbol_Dict = Dict(value => key for (key, value) in TokenTypeID_Dict)
-    
-struct Token
-    type_id::Int64 # see TokenTypeID_Dict
-    string::String
-end
-
-mutable struct Lexer
-    buffer::String
-    pos::Int64
-    Lexer(buffer::String) = new(buffer, 1)
-end
-
-
-#= ---------------------- =#
-#= Lexer iterator methods =#
-#= ---------------------- =#
-
-"""
-    start!(lex::Lexer) 
-
-reset postion of lexer to 1 
-"""
-function start!(lex::Lexer) 
-    lex.pos = 1
-end
-
-done(lex::Lexer) = length(lex.buffer) < lex.pos
-iteratorsize(lex::Lexer) =  Base.SizeUnknown()
+const TokenSymbol_Dict = Dict(value => key for (key, value) in TokenTypeID_OF_ASCII)
 
 
 """
@@ -70,10 +42,10 @@ iteratorsize(lex::Lexer) =  Base.SizeUnknown()
 
 divide lexer into tokens -> return next token and set lex.pos after token
 """
-function next_ascii!(lex::Lexer)
+function next_of_dict_ascii!(lex::ASCII_Lexer, symbol_to_tokenID_dict::Dict{Symbol,Int64})
 
     if done(lex)
-        return (Token(TokenTypeID_Dict[:eof], ""), lex.pos)
+        return Token(symbol_to_tokenID_dict[:eof], "")
     end
 
     ch = lex.buffer[lex.pos]
@@ -82,7 +54,7 @@ function next_ascii!(lex::Lexer)
     while ch in " \t\n"
         lex.pos += 1
         if done(lex)
-            return Token(TokenTypeID_Dict[:eof], "")
+            return Token(symbol_to_tokenID_dict[:eof], "")
         end
         ch = lex.buffer[lex.pos]
     end
@@ -93,14 +65,14 @@ function next_ascii!(lex::Lexer)
             spos = lex.pos + 2
             npos = findnext("//", lex.buffer,spos)
             lex.pos =  last(npos) + 1
-            return Token(TokenTypeID_Dict[:comment], 
+            return Token(symbol_to_tokenID_dict[:comment], 
                                 lex.buffer[spos:(first(npos)-1)])
 
         elseif lex.buffer[lex.pos+1] == '*' # multi line comment
             spos = lex.pos + 2
             npos = findnext("*/", lex.buffer, spos)
             lex.pos =  last(npos) + 1
-            return Token(TokenTypeID_Dict[:comment], 
+            return Token(symbol_to_tokenID_dict[:comment], 
                                 lex.buffer[spos:(first(npos)-1)])
 
         end
@@ -114,7 +86,7 @@ function next_ascii!(lex::Lexer)
         spos = lex.pos + 1
         npos = findnext('"', lex.buffer, spos) # TODO: Does not handle escaped quotes
         lex.pos =  npos + 1
-        return Token(TokenTypeID_Dict[:string], lex.buffer[spos : (first(npos)-1)])
+        return Token(symbol_to_tokenID_dict[:string], lex.buffer[spos : (first(npos)-1)])
     elseif  in(ch, "+-/*{}();\\:=,|.<>")
           # Looking for general syntax tokens
           lex.pos += 1
@@ -125,110 +97,15 @@ function next_ascii!(lex::Lexer)
         #looking for numbers
         # range = findnext(r"\d+", lex.buffer, lex.pos)
         # lex.pos =  last(range) + 1
-        # return Token(TokenTypeID_Dict[:number], lex.buffer[range])  
-        return tokenize_ascii_number!(lex)
+        # return Token(symbol_to_tokenID_dict[:number], lex.buffer[range])  
+        return tokenize_ascii_number!(lex, symbol_to_tokenID_dict)
     elseif isletter(ch)
         # looking for word
         range = findnext(r"\w+", lex.buffer, lex.pos)
         lex.pos =  last(range) + 1
-        return Token(TokenTypeID_Dict[:word], lex.buffer[range])
+        return Token(symbol_to_tokenID_dict[:word], lex.buffer[range])
 
     else
         error("Unknown character '$ch' at position: $(lex.pos)")
-    end
-end
-
-
-"""
-    tokenize_ascii_number!(lex::Lexer)
-
-find strings that represent numbers and return token, also set lex.pos after 
-number string
-"""
-function tokenize_ascii_number!(lex::Lexer)
-    regexstr = r"[+\-]?(?:0|[1-9]\d*)(?:\.\d*)?(?:[eE][+\-]?\d+)?"
-
-    range = findnext(regexstr, lex.buffer, lex.pos)
-
-    if (!isempty(range) && first(range) == lex.pos)
-
-        lex.pos = last(range) + 1
-
-        if (contains(lex.buffer[range], '.') || 
-            contains(lex.buffer[range], 'E') || 
-            contains(lex.buffer[range], 'e') )
-
-            return Token(TokenTypeID_Dict[:float_number], lex.buffer[range])
-        else
-            return Token(TokenTypeID_Dict[:int_number], lex.buffer[range])
-        end
-    
-    else
-        lex.pos += 1
-        return Token(Int(lex.buffer[lex.pos]), lex.buffer[range])
-    end
-end
-
-#= -------------------------- =#
-#= End lexer iterator methods =#
-#= -------------------------- =#
-
-
-"""
-    tokenize_ascii(lex::Lexer)
-
-tokenize of lexer (buffer)
-"""
-function tokenize_ascii(lex::Lexer)
-    tokens = Vector{Token}(undef,0)
-    start!(lex) # just to be shure lex.pos = 1
-
-    while true
-        token = next_ascii!(lex)
-
-        push!(tokens, token)
-
-        if token.type_id == TokenTypeID_Dict[:eof]
-            break
-        end
-    end
-
-    return tokens
-end
-
-
-"""
-    tokenize_ofmeshfile(filename::String)
-
-tokenize openfoam (ascii) dictionary (filename) from lex buffer
-"""
-function tokenize_ascii_ofmeshfile(filename::String)
-    file = open(filename,"r")
-    lexer = Lexer(read(file, String))
-    close(file)
-
-    tokens = tokenize_ascii(lexer)
-    remove_comments!(tokens)
-end
-
-
-"""
-    remove_comments!(tokens::Vector{Token}) 
-
-remove comments from tokens
-"""
-function remove_comments!(tokens::Vector{Token})
-    filter!(t->t.type_id != TokenTypeID_Dict[:comment], tokens)
-end
-
-
-"""
-    printtokens(tokens::Vector{Token})
-
-simple printing of tokens
-"""
-function printtokens(tokens::Vector{Token})
-    for (i,t) in enumerate(tokens)
-        println(i," ",TokenSymbol_Dict[t.type_id], " \n\t\t: ", t.string, " \n")
     end
 end
